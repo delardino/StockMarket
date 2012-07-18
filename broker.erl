@@ -1,0 +1,152 @@
+%%%-------------------------------------------------------------------
+%%% @author aydin <delardino@delardino>
+%%% @copyright (C) 2012, aydin
+%%% @doc
+%%%
+%%% @end
+%%% Created : 12 Jul 2012 by aydin <delardino@delardino>
+%%%-------------------------------------------------------------------
+-module(broker).
+
+-behaviour(gen_server).
+
+%% API
+-export([start/0, offer_entry/5, send_request/5, list_all_requests/0]).
+
+%% gen_server callbacks
+-export([init/1, handle_call/3, handle_cast/2, handle_info/2,
+	 terminate/2, code_change/3]).
+
+-define(SERVER, ?MODULE). 
+
+-record(state, {}).
+
+%%%===================================================================
+%%% API
+%%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @doc
+%% Starts the server
+%%
+%% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
+%% @end
+%%--------------------------------------------------------------------
+start() ->
+    gen_server:start_link({local, ?SERVER}, ?MODULE, [], []).
+
+send_request(StockName, UserName, Request, Offer, Shares)->
+    gen_server:call(?MODULE, {send_request, StockName, UserName, Request, Offer, Shares}).
+
+list_all_requests()->
+    gen_server:call(?MODULE, {list_all_requests}).
+
+
+
+%%%===================================================================
+%%% gen_server callbacks
+%%%===================================================================
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Initializes the server
+%%
+%% @spec init(Args) -> {ok, State} |
+%%                     {ok, State, Timeout} |
+%%                     ignore |
+%%                     {stop, Reason}
+%% @end
+%%--------------------------------------------------------------------
+init([]) ->
+    {ok, #state{}}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling call messages
+%%
+%% @spec handle_call(Request, From, State) ->
+%%                                   {reply, Reply, State} |
+%%                                   {reply, Reply, State, Timeout} |
+%%                                   {noreply, State} |
+%%                                   {noreply, State, Timeout} |
+%%                                   {stop, Reason, Reply, State} |
+%%                                   {stop, Reason, State}
+%% @end
+%%--------------------------------------------------------------------
+handle_call({send_request, StockName, UserName, Action, Offer, Shares}, _From, Requests) ->
+    Reply = offer_entry(StockName, UserName, Action, Offer, Shares),
+    {reply, Reply, Requests};
+
+handle_call({list_all_requests}, _From, Requests) ->
+    Reply = db:select_all_offers(),
+    {reply, Reply, Requests}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling cast messages
+%%
+%% @spec handle_cast(Msg, State) -> {noreply, State} |
+%%                                  {noreply, State, Timeout} |
+%%                                  {stop, Reason, State}
+%% @end
+%%--------------------------------------------------------------------
+stop()->
+    gen_server:cast(?MODULE, stop).
+
+handle_cast(_Msg, State) ->
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Handling all non call/cast messages
+%%
+%% @spec handle_info(Info, State) -> {noreply, State} |
+%%                                   {noreply, State, Timeout} |
+%%                                   {stop, Reason, State}
+%% @end
+%%--------------------------------------------------------------------
+handle_info(_Info, State) ->
+    {noreply, State}.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% This function is called by a gen_server when it is about to
+%% terminate. It should be the opposite of Module:init/1 and do any
+%% necessary cleaning up. When it returns, the gen_server terminates
+%% with Reason. The return value is ignored.
+%%
+%% @spec terminate(Reason, State) -> void()
+%% @end
+%%--------------------------------------------------------------------
+terminate(_Reason, _State) ->
+    ok.
+
+%%--------------------------------------------------------------------
+%% @private
+%% @doc
+%% Convert process state when code is changed
+%%
+%% @spec code_change(OldVsn, State, Extra) -> {ok, NewState}
+%% @end
+%%--------------------------------------------------------------------
+code_change(_OldVsn, State, _Extra) ->
+    {ok, State}.
+
+%%%===================================================================
+%%% Internal functions
+%%%===================================================================
+
+offer_entry(StockName, UserName, Action, Offer, Shares)->
+    Pid = db:select_stock_by_name(StockName),
+    
+    %%Pid = spawn(db, new_offer, [Index, UserName, Request, Offer,Shares]),
+    Index = 1, %% temproray index
+    db:insert_offer(Index, Pid, UserName, Action, Offer, Shares),
+    {offer_entry, Index, Pid,UserName, Action, Offer, Shares}.
+
+
